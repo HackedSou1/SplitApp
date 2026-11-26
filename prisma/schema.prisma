@@ -1,0 +1,92 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  password  String
+  isAdmin   Boolean  @default(false)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sessions        Session[]
+  attendances     Attendance[]
+  roleAssignments MeetingRole[]
+  votesCast       Vote[]        @relation("votesCast")
+  votesReceived   Vote[]        @relation("votesReceived")
+}
+
+model Session {
+  id        String   @id
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Meeting {
+  id        String   @id @default(cuid())
+  title     String
+  theme     String?
+  date      DateTime
+  // scheduled | completed (voting open) | closed (voting finished)
+  status    String   @default("scheduled")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  attendances Attendance[]
+  roles       MeetingRole[]
+  votes       Vote[]
+}
+
+model Attendance {
+  id        String   @id @default(cuid())
+  userId    String
+  meetingId String
+  // yes | no | maybe
+  status    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  meeting Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, meetingId])
+}
+
+model MeetingRole {
+  id        String   @id @default(cuid())
+  meetingId String
+  userId    String
+  role      String
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  meeting Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  @@unique([meetingId, userId, role])
+}
+
+model Vote {
+  id          String   @id @default(cuid())
+  meetingId   String
+  voterId     String
+  category    String
+  candidateId String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  meeting   Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  voter     User    @relation("votesCast", fields: [voterId], references: [id], onDelete: Cascade)
+  candidate User    @relation("votesReceived", fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@unique([meetingId, voterId, category])
+}
