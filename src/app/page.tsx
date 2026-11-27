@@ -117,7 +117,7 @@ export default function Page() {
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="flex items-center gap-3 text-muted-foreground">
           <Mic className="size-6 animate-pulse text-primary" />
-          <span className="text-sm">Loading ClubHub…</span>
+          <span className="text-sm">Loading Step Up Club Hub…</span>
         </div>
       </div>
     )
@@ -142,7 +142,7 @@ export default function Page() {
               <Mic className="size-5" />
             </div>
             <div className="leading-tight">
-              <p className="text-base font-bold tracking-tight">ClubHub</p>
+              <p className="text-base font-bold tracking-tight">Step Up Club Hub</p>
               <p className="hidden max-w-64 truncate text-xs text-muted-foreground sm:block">{data.club.name}</p>
             </div>
           </div>
@@ -228,7 +228,7 @@ export default function Page() {
       <footer className="mt-auto hidden border-t bg-background py-4 md:block">
         <p className="mx-auto flex max-w-6xl items-center gap-1.5 px-4 text-xs text-muted-foreground">
           <Trophy className="size-3.5 text-amber-500" />
-          ClubHub — built for Toastmasters clubs. All data lives on your club&apos;s server.
+          Step Up Club Hub — built for Toastmasters clubs. All data lives on your club&apos;s server.
         </p>
       </footer>
 

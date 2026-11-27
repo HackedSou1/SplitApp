@@ -41,7 +41,7 @@ export function LoginView({ onSuccess }: { onSuccess: () => Promise<void> }) {
             <Mic className="size-7" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">ClubHub</h1>
+            <h1 className="text-2xl font-bold tracking-tight">Step Up Club Hub</h1>
             <p className="text-sm text-muted-foreground">
               Your Toastmasters club workspace — RSVPs, roles and awards in one place.
             </p>

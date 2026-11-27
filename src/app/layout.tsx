@@ -15,12 +15,12 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ClubHub — Toastmasters Meeting Manager",
+  title: "Step Up Club Hub — Toastmasters Meeting Manager",
   description:
     "RSVP for the next meeting, volunteer for roles, track role history and vote for the best speakers and role players — all in one place for your Toastmasters club.",
   keywords: ["Toastmasters", "meeting", "RSVP", "roles", "voting", "club management"],
   openGraph: {
-    title: "ClubHub — Toastmasters Meeting Manager",
+    title: "Step Up Club Hub — Toastmasters Meeting Manager",
     description: "RSVPs, roles, history and meeting awards for your Toastmasters club.",
     type: "website",
   },
