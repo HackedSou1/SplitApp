@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion"
 import { ArrowRight, CalendarClock, ClipboardList, Mic2, Trophy, Users } from "lucide-react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import type { AppData, AppMeeting, View } from "@/lib/client-types"
 import { fmtDate, fmtTime, relDayLabel } from "@/lib/client-utils"
 import { slotLabel } from "@/lib/constants"
@@ -19,7 +19,6 @@ export function HomeView({ data, refresh, goTo }: { data: AppData; refresh: () =
   const openVoting = data.meetings
     .filter((m) => m.status === "completed")
     .sort((a, b) => b.date.localeCompare(a.date))[0]
-  const lastClosed = data.meetings.filter((m) => m.status === "closed").sort((a, b) => b.date.localeCompare(a.date))[0]
 
   const hour = new Date().getHours()
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening"
@@ -143,48 +142,6 @@ export function HomeView({ data, refresh, goTo }: { data: AppData; refresh: () =
         ))}
       </div>
 
-      {lastClosed && <LastWinnersCard meeting={lastClosed} data={data} goTo={goTo} />}
     </div>
-  )
-}
-
-function LastWinnersCard({ meeting, data, goTo }: { meeting: AppMeeting; data: AppData; goTo: (v: View) => void }) {
-  const userById = (id: string) => data.users.find((u) => u.id === id)
-  const categories = Object.entries(meeting.voteCounts).filter(([, counts]) => Object.keys(counts).length > 0)
-  if (categories.length === 0) return null
-  return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Trophy className="size-4 text-amber-500" />
-          Winners — {meeting.title}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="grid gap-3 sm:grid-cols-2">
-        {categories.map(([category, counts]) => {
-          const max = Math.max(...Object.values(counts))
-          const winners = Object.entries(counts).filter(([, c]) => c === max)
-          return (
-            <div key={category} className="flex items-center gap-3 rounded-lg border p-3">
-              <Trophy className="size-4 shrink-0 text-amber-500" />
-              <div className="min-w-0 flex-1">
-                <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                  {category.replace(/_/g, " ").replace("best ", "Best ")}
-                </div>
-                <div className="truncate text-sm font-semibold">
-                  {winners.map(([id]) => userById(id)?.name ?? "Unknown").join(" & ")}
-                  <span className="ml-1 font-normal text-muted-foreground">({max} votes)</span>
-                </div>
-              </div>
-            </div>
-          )
-        })}
-      </CardContent>
-      <div className="px-6 pb-4">
-        <button onClick={() => goTo("voting")} className="text-sm font-medium text-primary hover:underline">
-          See full results <ArrowRight className="inline size-3.5" />
-        </button>
-      </div>
-    </Card>
   )
 }

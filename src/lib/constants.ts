@@ -29,10 +29,10 @@ export const ROLES: RoleDef[] = [
   { key: "speaker", label: "Speaker", short: "Speaker", emoji: "🎤", group: "speakers", multi: true, description: "Delivers a prepared speech from a Pathways project." },
   { key: "evaluator", label: "Evaluator", short: "Evaluator", emoji: "🎤", group: "evaluators", multi: true, description: "Evaluates the speaker with the same number." },
   { key: "timer", label: "Timer", short: "Timer", emoji: "⏱️", group: "tag", multi: false, description: "Times each speech and shows the timing signals." },
-  { key: "ah_counter", label: "Ah Counter", short: "Ah", emoji: "🗣️", group: "tag", multi: false, description: "Counts filler words such as ah, um and er." },
-  { key: "grammarian", label: "Grammarian", short: "Grammar", emoji: "👨‍🏫", group: "tag", multi: false, description: "Tracks language use and the Word of the Day." },
-  { key: "active_listener", label: "Active Listener", short: "Listener", emoji: "👂🏻", group: "tag", multi: false, description: "Listens closely and quizzes the audience at the end." },
-  { key: "backup_speaker", label: "Backup Speaker", short: "Backup", emoji: "", group: "backup", multi: false, description: "Ready to speak if a speaker drops out." },
+  { key: "ah_counter", label: "Ah Counter", short: "Ah Counter", emoji: "🗣️", group: "tag", multi: false, description: "Counts filler words such as ah, um and er." },
+  { key: "grammarian", label: "Grammarian", short: "Grammarian", emoji: "👨‍🏫", group: "tag", multi: false, description: "Tracks language use and the Word of the Day." },
+  { key: "active_listener", label: "Active Listener", short: "Active Listener", emoji: "👂🏻", group: "tag", multi: false, description: "Listens closely and quizzes the audience at the end." },
+  { key: "backup_speaker", label: "Backup Speaker", short: "Backup Speaker", emoji: "", group: "backup", multi: false, description: "Ready to speak if a speaker drops out." },
 ]
 
 export const ROLE_KEYS = ROLES.map((r) => r.key)

@@ -263,7 +263,7 @@ function SlotRow({
 
   return (
     <div className={`flex flex-wrap items-center gap-3 px-4 py-3 sm:flex-nowrap ${isMine ? "bg-primary/5" : ""}`}>
-      <div className="w-28 shrink-0" title={role.description}>
+      <div className="w-36 shrink-0" title={role.description}>
         <p className="text-sm font-semibold">
           {role.emoji && <span className="mr-1">{role.emoji}</span>}
           {label}
