@@ -74,6 +74,29 @@ export default function Page() {
     }
   }, [])
 
+  // Keep everyone's screen in sync: quietly re-fetch every 10s while the tab is visible,
+  // and straight away when someone comes back to the tab.
+  const signedIn = state.status === "ok"
+  useEffect(() => {
+    if (!signedIn) return
+    const silentRefresh = async () => {
+      if (document.visibilityState !== "visible") return
+      try {
+        const res = await fetch("/api/app-data")
+        if (res.status === 401) setState({ status: "signedOut" })
+        else if (res.ok) setState({ status: "ok", data: (await res.json()) as AppData })
+      } catch {
+        // offline for a moment — keep showing what we have
+      }
+    }
+    const t = setInterval(silentRefresh, 10000)
+    document.addEventListener("visibilitychange", silentRefresh)
+    return () => {
+      clearInterval(t)
+      document.removeEventListener("visibilitychange", silentRefresh)
+    }
+  }, [signedIn])
+
   const goTo = useCallback((v: View) => {
     setView(v)
     window.scrollTo({ top: 0 })
@@ -120,7 +143,7 @@ export default function Page() {
             </div>
             <div className="leading-tight">
               <p className="text-base font-bold tracking-tight">ClubHub</p>
-              <p className="hidden text-xs text-muted-foreground sm:block">Toastmasters meeting manager</p>
+              <p className="hidden max-w-64 truncate text-xs text-muted-foreground sm:block">{data.club.name}</p>
             </div>
           </div>
           <div className="flex items-center gap-1.5">

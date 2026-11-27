@@ -36,8 +36,14 @@ model Session {
 model Meeting {
   id        String   @id @default(cuid())
   title     String
+  number    Int?
   theme     String?
   date      DateTime
+  venue     String?
+  mapsUrl   String?
+  // how many speaker / evaluator slots this meeting has
+  speakerSlots Int @default(3)
+  notes     String?
   // scheduled | completed (voting open) | closed (voting finished)
   status    String   @default("scheduled")
   createdAt DateTime @default(now())
@@ -68,11 +74,16 @@ model MeetingRole {
   meetingId String
   userId    String
   role      String
+  // slot number for roles with several places (Speaker 1, 2, 3...); 1 for single roles
+  slot      Int      @default(1)
+  createdAt DateTime @default(now())
 
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   meeting Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
 
-  @@unique([meetingId, userId, role])
+  // a slot can only be held by one person - enforced by the database
+  @@unique([meetingId, role, slot])
+  @@index([meetingId, userId])
 }
 
 model Vote {
@@ -89,4 +100,15 @@ model Vote {
   candidate User    @relation("votesReceived", fields: [candidateId], references: [id], onDelete: Cascade)
 
   @@unique([meetingId, voterId, category])
+}
+
+// Club-wide settings (single row, id = 1)
+model Club {
+  id           Int     @id @default(1)
+  name         String  @default("Step Up Dwarka Toastmasters Club")
+  venue        String?
+  mapsUrl      String?
+  meetingTime  String  @default("10:45")
+  scriptUrl    String?
+  guideUrl     String?
 }

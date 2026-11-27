@@ -5,6 +5,7 @@ import { ArrowRight, CalendarClock, ClipboardList, Mic2, Trophy, Users } from "l
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import type { AppData, AppMeeting, View } from "@/lib/client-types"
 import { fmtDate, fmtTime, relDayLabel } from "@/lib/client-utils"
+import { slotLabel } from "@/lib/constants"
 import { RsvpButtons } from "@/components/app/rsvp-buttons"
 
 export function nextScheduledMeeting(meetings: AppMeeting[]): AppMeeting | null {
@@ -53,7 +54,7 @@ export function HomeView({ data, refresh, goTo }: { data: AppData; refresh: () =
           <span className="flex-1">
             <span className="block text-sm font-semibold text-emerald-800 dark:text-emerald-300">Voting is open</span>
             <span className="block text-sm text-emerald-700/90 dark:text-emerald-300/90">
-              {openVoting.title} — pick the best speakers and role players
+              {openVoting.title} — cast your votes
             </span>
           </span>
           <ArrowRight className="size-4 text-emerald-700 dark:text-emerald-400" />
@@ -76,6 +77,16 @@ export function HomeView({ data, refresh, goTo }: { data: AppData; refresh: () =
               <div>
                 <h2 className="text-lg font-semibold leading-tight">{next.title}</h2>
                 {next.theme && <p className="text-sm text-muted-foreground">Theme: {next.theme}</p>}
+                {next.venue && (
+                  <p className="text-sm text-muted-foreground">
+                    📍 {next.venue}
+                    {next.mapsUrl && (
+                      <a href={next.mapsUrl} target="_blank" rel="noreferrer" className="ml-2 font-medium text-primary hover:underline">
+                        Map
+                      </a>
+                    )}
+                  </p>
+                )}
                 <p className="mt-1 text-sm text-muted-foreground">
                   {fmtDate(next.date)} · {fmtTime(next.date)}
                 </p>
@@ -92,7 +103,7 @@ export function HomeView({ data, refresh, goTo }: { data: AppData; refresh: () =
                 </span>
                 {myRolesNext.length > 0 && (
                   <span className="inline-flex items-center gap-1.5">
-                    <Mic2 className="size-4" /> You have {myRolesNext.length} role{myRolesNext.length > 1 ? "s" : ""}
+                    <Mic2 className="size-4" /> You are {myRolesNext.map((r) => slotLabel(r.role, r.slot)).join(" & ")}
                   </span>
                 )}
                 <button onClick={() => goTo("meeting")} className="inline-flex items-center gap-1 font-medium text-primary hover:underline">

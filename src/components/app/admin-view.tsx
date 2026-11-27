@@ -9,6 +9,7 @@ import {
   Loader2,
   Pencil,
   Plus,
+  Settings,
   ShieldCheck,
   Trash2,
   UserPlus,
@@ -23,9 +24,11 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/hooks/use-toast"
 import { api, fmtShortDate, localInputValue } from "@/lib/client-utils"
+import { MAX_SLOTS } from "@/lib/constants"
 import type { AppData, AppUser } from "@/lib/client-types"
 import { MeetingStatusBadge, UserAvatar } from "@/components/app/bits"
 
@@ -48,8 +51,8 @@ export function AdminView({ data, refresh }: { data: AppData; refresh: () => Pro
           <TabsTrigger value="meetings">
             <CalendarPlus className="mr-1.5 size-4" /> Meetings
           </TabsTrigger>
-          <TabsTrigger value="data">
-            <Trash2 className="mr-1.5 size-4" /> Demo data
+          <TabsTrigger value="club">
+            <Settings className="mr-1.5 size-4" /> Club settings
           </TabsTrigger>
         </TabsList>
         <TabsContent value="members" className="mt-4">
@@ -58,8 +61,8 @@ export function AdminView({ data, refresh }: { data: AppData; refresh: () => Pro
         <TabsContent value="meetings" className="mt-4">
           <MeetingsTab data={data} refresh={refresh} />
         </TabsContent>
-        <TabsContent value="data" className="mt-4">
-          <DataTab refresh={refresh} />
+        <TabsContent value="club" className="mt-4">
+          <ClubTab data={data} refresh={refresh} />
         </TabsContent>
       </Tabs>
     </div>
@@ -72,6 +75,7 @@ function MembersTab({ data, refresh }: { data: AppData; refresh: () => Promise<v
   const { toast } = useToast()
   const [addOpen, setAddOpen] = useState(false)
   const [resetTarget, setResetTarget] = useState<AppUser | null>(null)
+  const [editTarget, setEditTarget] = useState<AppUser | null>(null)
   const [newPassword, setNewPassword] = useState("")
   const [busy, setBusy] = useState(false)
 
@@ -105,6 +109,26 @@ function MembersTab({ data, refresh }: { data: AppData; refresh: () => Promise<v
       setResetTarget(null)
     } catch (e) {
       toast({ title: "Could not reset password", description: e instanceof Error ? e.message : undefined, variant: "destructive" })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function saveDetails(form: FormData) {
+    if (!editTarget || busy) return
+    setBusy(true)
+    try {
+      const body: Record<string, unknown> = {
+        name: String(form.get("name") ?? ""),
+        email: String(form.get("email") ?? ""),
+      }
+      if (editTarget.id !== data.user.id) body.isAdmin = form.get("isAdmin") === "on"
+      await api(`/api/users/${editTarget.id}`, "PATCH", body)
+      await refresh()
+      toast({ title: "Member updated", description: String(body.name) })
+      setEditTarget(null)
+    } catch (e) {
+      toast({ title: "Could not update member", description: e instanceof Error ? e.message : undefined, variant: "destructive" })
     } finally {
       setBusy(false)
     }
@@ -168,6 +192,9 @@ function MembersTab({ data, refresh }: { data: AppData; refresh: () => Promise<v
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => setEditTarget(u)}>
+                    <Pencil className="size-4" /> Edit name / email
+                  </DropdownMenuItem>
                   <DropdownMenuItem
                     onClick={() => {
                       setResetTarget(u)
@@ -256,6 +283,41 @@ function MembersTab({ data, refresh }: { data: AppData; refresh: () => Promise<v
         </DialogContent>
       </Dialog>
 
+      {/* Edit member dialog */}
+      <Dialog open={editTarget !== null} onOpenChange={(open) => !open && setEditTarget(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit member</DialogTitle>
+            <DialogDescription>Change their display name, login email or admin rights.</DialogDescription>
+          </DialogHeader>
+          {editTarget && (
+            <form action={saveDetails} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="ed-name">Full name</Label>
+                <Input id="ed-name" name="name" defaultValue={editTarget.name} required />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="ed-email">Login email</Label>
+                <Input id="ed-email" name="email" type="email" defaultValue={editTarget.email} required />
+              </div>
+              {editTarget.id !== data.user.id && (
+                <label className="flex items-center gap-2 text-sm">
+                  <Checkbox name="isAdmin" defaultChecked={editTarget.isAdmin} /> Admin
+                </label>
+              )}
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setEditTarget(null)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={busy}>
+                  {busy && <Loader2 className="size-4 animate-spin" />} Save
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
+
       {/* Reset password dialog */}
       <Dialog open={resetTarget !== null} onOpenChange={(open) => !open && setResetTarget(null)}>
         <DialogContent className="sm:max-w-md">
@@ -290,62 +352,67 @@ function MembersTab({ data, refresh }: { data: AppData; refresh: () => Promise<v
   )
 }
 
-/* ---------------- Demo data ---------------- */
+/* ---------------- Club settings ---------------- */
 
-function DataTab({ refresh }: { refresh: () => Promise<void> }) {
+function ClubTab({ data, refresh }: { data: AppData; refresh: () => Promise<void> }) {
   const { toast } = useToast()
   const [busy, setBusy] = useState(false)
+  const c = data.club
 
-  async function reset() {
+  async function save(form: FormData) {
     if (busy) return
     setBusy(true)
     try {
-      await api("/api/admin/reset", "POST")
+      await api("/api/club", "PATCH", Object.fromEntries(form.entries()))
       await refresh()
-      toast({
-        title: "All club data cleared",
-        description: "Only your admin account remains. Add your real members and create your first meeting!",
-      })
+      toast({ title: "Club settings saved" })
     } catch (e) {
-      toast({ title: "Reset failed", description: e instanceof Error ? e.message : undefined, variant: "destructive" })
+      toast({ title: "Could not save", description: e instanceof Error ? e.message : undefined, variant: "destructive" })
     } finally {
       setBusy(false)
     }
   }
 
   return (
-    <Card className="border-destructive/30">
+    <Card>
       <CardHeader>
-        <CardTitle className="text-base">Start fresh — remove demo data</CardTitle>
+        <CardTitle className="text-base">Club settings</CardTitle>
         <CardDescription>
-          This club started with sample members, meetings and votes so you could explore every feature. When you are
-          ready to use ClubHub for real, wipe everything here — your admin login is kept.
+          Used in the WhatsApp role call and pre-filled whenever you create a new meeting.
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <Button variant="destructive" disabled={busy}>
-              {busy ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
-              Delete all meetings, members and votes
+        <form action={save} className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2 sm:col-span-2">
+            <Label htmlFor="c-name">Club name</Label>
+            <Input id="c-name" name="name" defaultValue={c.name} required />
+          </div>
+          <div className="space-y-2 sm:col-span-2">
+            <Label htmlFor="c-venue">Usual venue</Label>
+            <Input id="c-venue" name="venue" defaultValue={c.venue ?? ""} placeholder="Creative unlock, Ramphal chowk, Dwarka sector 7" />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="c-maps">Google Maps link</Label>
+            <Input id="c-maps" name="mapsUrl" type="url" defaultValue={c.mapsUrl ?? ""} placeholder="https://maps.app.goo.gl/..." />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="c-time">Usual start time</Label>
+            <Input id="c-time" name="meetingTime" type="time" defaultValue={c.meetingTime} required />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="c-script">Roles&apos; script link</Label>
+            <Input id="c-script" name="scriptUrl" type="url" defaultValue={c.scriptUrl ?? ""} />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="c-guide">Role call bible link</Label>
+            <Input id="c-guide" name="guideUrl" type="url" defaultValue={c.guideUrl ?? ""} />
+          </div>
+          <div className="sm:col-span-2">
+            <Button type="submit" disabled={busy}>
+              {busy ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />} Save settings
             </Button>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Remove everything?</AlertDialogTitle>
-              <AlertDialogDescription>
-                All members (except you), meetings, RSVPs, roles and votes will be permanently deleted. This cannot be
-                undone.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Keep my data</AlertDialogCancel>
-              <AlertDialogAction className="bg-destructive text-white hover:bg-destructive/90" onClick={reset}>
-                Yes, start fresh
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+          </div>
+        </form>
       </CardContent>
     </Card>
   )
@@ -359,19 +426,17 @@ function MeetingsTab({ data, refresh }: { data: AppData; refresh: () => Promise<
   const [editTarget, setEditTarget] = useState<AppData["meetings"][number] | null>(null)
   const [busy, setBusy] = useState(false)
 
+  const [hh, mm] = data.club.meetingTime.split(":").map(Number)
   const nextWeek = new Date()
   nextWeek.setDate(nextWeek.getDate() + 7)
-  nextWeek.setHours(18, 30, 0, 0)
+  nextWeek.setHours(hh ?? 10, mm ?? 45, 0, 0)
+  const nextNumber = Math.max(0, ...data.meetings.map((m) => m.number ?? 0)) + 1
 
   async function createMeeting(form: FormData) {
     if (busy) return
     setBusy(true)
     try {
-      await api("/api/meetings", "POST", {
-        title: String(form.get("title") ?? ""),
-        theme: String(form.get("theme") ?? ""),
-        date: new Date(String(form.get("date"))).toISOString(),
-      })
+      await api("/api/meetings", "POST", meetingBody(form))
       await refresh()
       setCreateOpen(false)
       toast({ title: "Meeting created", description: "Members can now RSVP and pick roles." })
@@ -386,11 +451,7 @@ function MeetingsTab({ data, refresh }: { data: AppData; refresh: () => Promise<
     if (!editTarget || busy) return
     setBusy(true)
     try {
-      await api(`/api/meetings/${editTarget.id}`, "PATCH", {
-        title: String(form.get("title") ?? ""),
-        theme: String(form.get("theme") ?? ""),
-        date: new Date(String(form.get("date"))).toISOString(),
-      })
+      await api(`/api/meetings/${editTarget.id}`, "PATCH", meetingBody(form))
       await refresh()
       setEditTarget(null)
       toast({ title: "Meeting updated" })
@@ -452,6 +513,7 @@ function MeetingsTab({ data, refresh }: { data: AppData; refresh: () => Promise<
                   {fmtShortDate(m.date)} · {m.attendances.filter((a) => a.status === "yes").length} RSVPs ·{" "}
                   {m.roles.length} roles · {m.voterCount} voters
                   {m.theme ? ` · ${m.theme}` : ""}
+                  {m.venue ? ` · ${m.venue}` : ""}
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -500,24 +562,25 @@ function MeetingsTab({ data, refresh }: { data: AppData; refresh: () => Promise<
 
       {/* Create meeting dialog */}
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Create a meeting</DialogTitle>
             <DialogDescription>Members will be able to RSVP and volunteer for roles right away.</DialogDescription>
           </DialogHeader>
           <form action={createMeeting} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="m-title">Title</Label>
-              <Input id="m-title" name="title" placeholder="Meeting #14 — New Horizons" required />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="m-date">Date &amp; time</Label>
-              <Input id="m-date" name="date" type="datetime-local" defaultValue={localInputValue(nextWeek.toISOString())} required />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="m-theme">Theme (optional)</Label>
-              <Input id="m-theme" name="theme" placeholder="Stories that move us" />
-            </div>
+            <MeetingFields
+              prefix="m"
+              defaults={{
+                number: String(nextNumber),
+                title: `Meeting #${nextNumber}`,
+                date: localInputValue(nextWeek.toISOString()),
+                theme: "",
+                venue: data.club.venue ?? "",
+                mapsUrl: data.club.mapsUrl ?? "",
+                speakerSlots: "3",
+                notes: "",
+              }}
+            />
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>
                 Cancel
@@ -532,25 +595,26 @@ function MeetingsTab({ data, refresh }: { data: AppData; refresh: () => Promise<
 
       {/* Edit meeting dialog */}
       <Dialog open={editTarget !== null} onOpenChange={(open) => !open && setEditTarget(null)}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Edit meeting</DialogTitle>
             <DialogDescription>{editTarget ? editTarget.title : ""}</DialogDescription>
           </DialogHeader>
           {editTarget && (
             <form action={editMeeting} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="e-title">Title</Label>
-                <Input id="e-title" name="title" defaultValue={editTarget.title} required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="e-date">Date &amp; time</Label>
-                <Input id="e-date" name="date" type="datetime-local" defaultValue={localInputValue(editTarget.date)} required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="e-theme">Theme (optional)</Label>
-                <Input id="e-theme" name="theme" defaultValue={editTarget.theme ?? ""} />
-              </div>
+              <MeetingFields
+                prefix="e"
+                defaults={{
+                  number: editTarget.number ? String(editTarget.number) : "",
+                  title: editTarget.title,
+                  date: localInputValue(editTarget.date),
+                  theme: editTarget.theme ?? "",
+                  venue: editTarget.venue ?? "",
+                  mapsUrl: editTarget.mapsUrl ?? "",
+                  speakerSlots: String(editTarget.speakerSlots),
+                  notes: editTarget.notes ?? "",
+                }}
+              />
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setEditTarget(null)}>
                   Cancel
@@ -563,6 +627,70 @@ function MeetingsTab({ data, refresh }: { data: AppData; refresh: () => Promise<
           )}
         </DialogContent>
       </Dialog>
+    </div>
+  )
+}
+
+function meetingBody(form: FormData) {
+  return {
+    number: String(form.get("number") ?? ""),
+    title: String(form.get("title") ?? ""),
+    theme: String(form.get("theme") ?? ""),
+    date: new Date(String(form.get("date"))).toISOString(),
+    venue: String(form.get("venue") ?? ""),
+    mapsUrl: String(form.get("mapsUrl") ?? ""),
+    speakerSlots: Number(form.get("speakerSlots") ?? 3),
+    notes: String(form.get("notes") ?? ""),
+  }
+}
+
+type MeetingDefaults = {
+  number: string
+  title: string
+  date: string
+  theme: string
+  venue: string
+  mapsUrl: string
+  speakerSlots: string
+  notes: string
+}
+
+function MeetingFields({ prefix, defaults }: { prefix: string; defaults: MeetingDefaults }) {
+  const id = (k: string) => `${prefix}-${k}`
+  return (
+    <div className="grid gap-4 sm:grid-cols-[7rem_1fr]">
+      <div className="space-y-2">
+        <Label htmlFor={id("number")}>Meeting #</Label>
+        <Input id={id("number")} name="number" type="number" min={1} defaultValue={defaults.number} placeholder="281" />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor={id("title")}>Title</Label>
+        <Input id={id("title")} name="title" defaultValue={defaults.title} required />
+      </div>
+      <div className="space-y-2 sm:col-span-2">
+        <Label htmlFor={id("date")}>Date &amp; time</Label>
+        <Input id={id("date")} name="date" type="datetime-local" defaultValue={defaults.date} required />
+      </div>
+      <div className="space-y-2 sm:col-span-2">
+        <Label htmlFor={id("theme")}>Theme (optional)</Label>
+        <Input id={id("theme")} name="theme" defaultValue={defaults.theme} />
+      </div>
+      <div className="space-y-2 sm:col-span-2">
+        <Label htmlFor={id("venue")}>Venue name / address</Label>
+        <Input id={id("venue")} name="venue" defaultValue={defaults.venue} />
+      </div>
+      <div className="space-y-2 sm:col-span-2">
+        <Label htmlFor={id("maps")}>Google Maps link</Label>
+        <Input id={id("maps")} name="mapsUrl" type="url" defaultValue={defaults.mapsUrl} placeholder="https://maps.app.goo.gl/..." />
+      </div>
+      <div className="space-y-2 sm:col-span-2">
+        <Label htmlFor={id("slots")}>Number of speakers (and evaluators)</Label>
+        <Input id={id("slots")} name="speakerSlots" type="number" min={1} max={MAX_SLOTS} defaultValue={defaults.speakerSlots} required />
+      </div>
+      <div className="space-y-2 sm:col-span-2">
+        <Label htmlFor={id("notes")}>Notes for members (optional)</Label>
+        <Textarea id={id("notes")} name="notes" defaultValue={defaults.notes} placeholder="Parking info, word of the day, dress code…" />
+      </div>
     </div>
   )
 }

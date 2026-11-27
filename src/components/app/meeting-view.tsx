@@ -1,28 +1,20 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { CalendarClock, Hand, Info, Loader2, Mic2, Plus, Users, X } from "lucide-react"
+import { CalendarClock, Check, Copy, Info, Loader2, MapPin, Mic2, Share2, Users, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
 import { api, fmtDate, fmtTime, relDayLabel } from "@/lib/client-utils"
-import { ROLES } from "@/lib/constants"
-import type { AppData, AppUser } from "@/lib/client-types"
+import { ROLES, ROLE_GROUPS, slotLabel, type RoleDef } from "@/lib/constants"
+import { buildRoleCall } from "@/lib/role-call"
+import type { AppData, AppMeeting, AppUser } from "@/lib/client-types"
 import { MeetingStatusBadge, UserAvatar } from "@/components/app/bits"
 import { RsvpButtons } from "@/components/app/rsvp-buttons"
 import { nextScheduledMeeting } from "@/components/app/home-view"
 
-function ordinal(n: number): string {
-  if (n === 0) return "new to this role"
-  const s = ["th", "st", "nd", "rd"]
-  const v = n % 100
-  return `${n}${s[(v - 20) % 10] ?? s[v] ?? s[0]!} time`
-}
-
 export function MeetingView({ data, refresh }: { data: AppData; refresh: () => Promise<void> }) {
-  const { toast } = useToast()
   const me = data.users.find((u) => u.id === data.user.id)!
   const meeting = nextScheduledMeeting(data.meetings)
 
@@ -53,20 +45,33 @@ export function MeetingView({ data, refresh }: { data: AppData; refresh: () => P
   ]
   const myAttendance = meeting.attendances.find((a) => a.userId === me.id)?.status
   const goingIds = new Set(groups[0]!.ids)
+  const myRole = meeting.roles.find((r) => r.userId === me.id)
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-bold tracking-tight">{meeting.title}</h1>
-            <MeetingStatusBadge status={meeting.status} />
-          </div>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {fmtDate(meeting.date)} · {fmtTime(meeting.date)} · {relDayLabel(meeting.date)}
-          </p>
-          {meeting.theme && <p className="text-sm text-muted-foreground">Theme: {meeting.theme}</p>}
+      <div>
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="text-2xl font-bold tracking-tight">{meeting.title}</h1>
+          <MeetingStatusBadge status={meeting.status} />
         </div>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {fmtDate(meeting.date)} · {fmtTime(meeting.date)} · {relDayLabel(meeting.date)}
+        </p>
+        {meeting.theme && <p className="text-sm text-muted-foreground">Theme: {meeting.theme}</p>}
+        {(meeting.venue || meeting.mapsUrl) && (
+          <p className="mt-1 flex items-start gap-1.5 text-sm">
+            <MapPin className="mt-0.5 size-4 shrink-0 text-primary" />
+            <span>
+              {meeting.venue}
+              {meeting.mapsUrl && (
+                <a href={meeting.mapsUrl} target="_blank" rel="noreferrer" className="ml-2 font-medium text-primary hover:underline">
+                  Open in Google Maps
+                </a>
+              )}
+            </span>
+          </p>
+        )}
+        {meeting.notes && <p className="mt-2 whitespace-pre-line rounded-lg bg-muted/50 px-3 py-2 text-sm">{meeting.notes}</p>}
       </div>
 
       <Card>
@@ -99,14 +104,11 @@ export function MeetingView({ data, refresh }: { data: AppData; refresh: () => P
                     if (!u) return null
                     const roles = meeting.roles.filter((r) => r.userId === id)
                     return (
-                      <span
-                        key={id}
-                        className="inline-flex items-center gap-1.5 rounded-full border bg-card py-1 pl-1 pr-3 text-sm"
-                      >
+                      <span key={id} className="inline-flex items-center gap-1.5 rounded-full border bg-card py-1 pl-1 pr-3 text-sm">
                         <UserAvatar user={u} className="size-6" />
                         {u.name.split(" ")[0]}
                         {roles.length > 0 && (
-                          <span className="text-xs text-muted-foreground">· {roles.map((r) => r.role.replace(/_/g, " ")).join(", ")}</span>
+                          <span className="text-xs text-muted-foreground">· {roles.map((r) => slotLabel(r.role, r.slot)).join(", ")}</span>
                         )}
                       </span>
                     )
@@ -115,230 +117,232 @@ export function MeetingView({ data, refresh }: { data: AppData; refresh: () => P
               </div>
             ) : null
           )}
-          {meeting.attendances.length === 0 && (
-            <p className="text-sm text-muted-foreground">No responses yet — be the first to RSVP!</p>
-          )}
+          {meeting.attendances.length === 0 && <p className="text-sm text-muted-foreground">No responses yet — be the first to RSVP!</p>}
         </CardContent>
       </Card>
 
       <div>
-        <div className="mb-3 flex items-center gap-2">
-          <Mic2 className="size-5 text-primary" />
-          <h2 className="text-lg font-semibold">Role board</h2>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Mic2 className="size-5 text-primary" />
+            <h2 className="text-lg font-semibold">Role board</h2>
+          </div>
+          <RoleCallButtons meeting={meeting} data={data} />
         </div>
         <p className="mb-4 flex items-start gap-1.5 text-sm text-muted-foreground">
           <Info className="mt-0.5 size-4 shrink-0" />
-          Volunteer for open roles — badges show how many times each person has played the role before, so everyone gets a
-          fair turn.
+          {myRole
+            ? `You are ${slotLabel(myRole.role, myRole.slot)}. One role per person — withdraw first if you want a different one.`
+            : "Pick one open role. Once someone takes a role it is locked for everyone else. The board updates by itself."}
         </p>
         <div className="grid gap-4 md:grid-cols-2">
-          {ROLES.map((role) => (
-            <RoleCard
-              key={role.key}
-              meeting={meeting}
-              roleKey={role.key}
-              roleLabel={role.label}
-              roleDesc={role.description}
-              multi={role.multi}
-              data={data}
-              refresh={refresh}
-              goingIds={goingIds}
-            />
-          ))}
+          {ROLE_GROUPS.map((g) => {
+            const roles = ROLES.filter((r) => r.group === g.key)
+            return (
+              <Card key={g.key}>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-semibold">{g.label}</CardTitle>
+                </CardHeader>
+                <CardContent className="divide-y p-0">
+                  {roles.flatMap((role) =>
+                    (role.multi ? Array.from({ length: meeting.speakerSlots }, (_, i) => i + 1) : [1]).map((slot) => (
+                      <SlotRow
+                        key={`${role.key}-${slot}`}
+                        meeting={meeting}
+                        role={role}
+                        slot={slot}
+                        data={data}
+                        refresh={refresh}
+                        goingIds={goingIds}
+                        iHaveRole={Boolean(myRole)}
+                      />
+                    ))
+                  )}
+                </CardContent>
+              </Card>
+            )
+          })}
         </div>
       </div>
     </div>
   )
 }
 
-function RoleCard({
-  meeting,
-  roleKey,
-  roleLabel,
-  roleDesc,
-  multi,
-  data,
-  refresh,
-  goingIds,
-}: {
-  meeting: AppData["meetings"][number]
-  roleKey: string
-  roleLabel: string
-  roleDesc: string
-  multi: boolean
-  data: AppData
-  refresh: () => Promise<void>
-  goingIds: Set<string>
-}) {
+function RoleCallButtons({ meeting, data }: { meeting: AppMeeting; data: AppData }) {
   const { toast } = useToast()
-  const me = data.users.find((u) => u.id === data.user.id)!
-  const assignments = meeting.roles.filter((r) => r.role === roleKey)
-  const mine = assignments.some((a) => a.userId === me.id)
-  const isTaken = !multi && assignments.length > 0
-  const [busy, setBusy] = useState(false)
-  const [assignOpen, setAssignOpen] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const text = () => buildRoleCall(meeting, data)
 
-  const userById = (id: string) => data.users.find((u) => u.id === id)
-
-  // Among members who said they're going (and haven't got this role yet), who has played it least?
-  const leastPlayed = data.users
-    .filter((u) => u.active && goingIds.has(u.id) && !assignments.some((a) => a.userId === u.id))
-    .sort((a, b) => (a.roleCounts[roleKey] ?? 0) - (b.roleCounts[roleKey] ?? 0) || a.name.localeCompare(b.name))
-    .slice(0, 2)
-
-  async function volunteer() {
-    if (busy) return
-    setBusy(true)
+  async function copy() {
     try {
-      await api("/api/roles", "POST", { meetingId: meeting.id, role: roleKey })
-      await refresh()
-      toast({ title: "You're in!", description: `You signed up as ${roleLabel}.` })
-    } catch (e) {
-      toast({ title: "Could not sign up", description: e instanceof Error ? e.message : undefined, variant: "destructive" })
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  async function remove(assignmentId: string, who: string) {
-    if (busy) return
-    setBusy(true)
-    try {
-      await api("/api/roles", "DELETE", { id: assignmentId })
-      await refresh()
-      toast({ title: who === "me" ? "You withdrew from the role" : "Role assignment removed" })
-    } catch (e) {
-      toast({ title: "Could not remove", description: e instanceof Error ? e.message : undefined, variant: "destructive" })
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  async function adminAssign(userId: string) {
-    if (busy) return
-    setBusy(true)
-    try {
-      await api("/api/roles", "POST", { meetingId: meeting.id, role: roleKey, userId })
-      await refresh()
-      toast({ title: "Role assigned", description: `${userById(userId)?.name} is now ${roleLabel}.` })
-    } catch (e) {
-      toast({ title: "Could not assign", description: e instanceof Error ? e.message : undefined, variant: "destructive" })
-    } finally {
-      setBusy(false)
-      setAssignOpen(false)
+      await navigator.clipboard.writeText(text())
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+      toast({ title: "Role call copied", description: "Paste it into your WhatsApp group." })
+    } catch {
+      toast({ title: "Could not copy", variant: "destructive" })
     }
   }
 
   return (
-    <Card className={mine ? "border-primary/50 ring-1 ring-primary/20" : undefined}>
-      <CardHeader className="pb-2">
-        <div className="flex items-start justify-between gap-2">
-          <div>
-            <CardTitle className="text-sm font-semibold">{roleLabel}</CardTitle>
-            <CardDescription className="mt-0.5 text-xs">{roleDesc}</CardDescription>
-          </div>
-          {multi && <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">multiple slots</span>}
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {assignments.length > 0 ? (
-          <ul className="space-y-2">
-            {assignments.map((a) => {
-              const u = userById(a.userId)
-              if (!u) return null
-              const played = u.roleCounts[roleKey] ?? 0
-              const isMe = u.id === me.id
-              return (
-                <li key={a.id} className="flex items-center gap-2">
-                  <UserAvatar user={u} className="size-8" />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">
-                      {u.name} {isMe && <span className="text-xs font-normal text-primary">(you)</span>}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {played === 0 ? "New to this role" : `${ordinal(played)} — ${played}× before`}
-                    </p>
-                  </div>
-                  {(isMe || me.isAdmin) && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="size-8 text-muted-foreground hover:text-destructive"
-                      onClick={() => remove(a.id, isMe ? "me" : "other")}
-                      aria-label={`Remove ${u.name} from ${roleLabel}`}
-                      disabled={busy}
-                    >
-                      <X className="size-4" />
-                    </Button>
-                  )}
-                </li>
-              )
-            })}
-          </ul>
-        ) : (
-          <div className="rounded-lg border border-dashed p-3 text-sm text-muted-foreground">
-            Open role
-            {leastPlayed.length > 0 && (
-              <span className="mt-1 block text-xs">
-                Least played by:{" "}
-                {leastPlayed.map((u) => (
-                  <span key={u.id} className="font-medium text-foreground">
-                    {u.name.split(" ")[0]} ({u.roleCounts[roleKey] ?? 0}×)
-                  </span>
-                ))}
-              </span>
-            )}
-          </div>
-        )}
-
-        <div className="flex items-center gap-2">
-          {!isTaken && !mine && (
-            <Button size="sm" variant="outline" onClick={volunteer} disabled={busy} className="flex-1">
-              {busy ? <Loader2 className="size-4 animate-spin" /> : <Hand className="size-4" />}
-              Volunteer
-            </Button>
-          )}
-          {mine && (
-            <Badge>You&apos;re signed up</Badge>
-          )}
-          {me.isAdmin && !isTaken && (
-            assignOpen ? (
-              <div className="flex flex-1 items-center gap-2">
-                <Label htmlFor={`assign-${roleKey}`} className="sr-only">
-                  Assign {roleLabel}
-                </Label>
-                <Select onValueChange={(v) => v && adminAssign(v)}>
-                  <SelectTrigger id={`assign-${roleKey}`} size="sm" className="flex-1">
-                    <SelectValue placeholder="Assign member..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {data.users
-                      .filter((u) => u.active && !assignments.some((a) => a.userId === u.id))
-                      .sort((a, b) => Number(goingIds.has(b.id)) - Number(goingIds.has(a.id)) || a.name.localeCompare(b.name))
-                      .map((u) => (
-                        <SelectItem key={u.id} value={u.id}>
-                          {goingIds.has(u.id) ? "● " : "○ "}
-                          {u.name}
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-                <Button variant="ghost" size="icon" className="size-8" onClick={() => setAssignOpen(false)} aria-label="Cancel assign">
-                  <X className="size-4" />
-                </Button>
-              </div>
-            ) : (
-              <Button size="sm" variant="ghost" onClick={() => setAssignOpen(true)} className="flex-1" disabled={busy}>
-                <Plus className="size-4" /> Assign (admin)
-              </Button>
-            )
-          )}
-        </div>
-      </CardContent>
-    </Card>
+    <div className="flex gap-2">
+      <Button size="sm" variant="outline" onClick={copy}>
+        {copied ? <Check className="size-4" /> : <Copy className="size-4" />} Copy role call
+      </Button>
+      <Button size="sm" variant="outline" asChild>
+        <a href={`https://wa.me/?text=${encodeURIComponent(text())}`} target="_blank" rel="noreferrer">
+          <Share2 className="size-4" /> WhatsApp
+        </a>
+      </Button>
+    </div>
   )
 }
 
-function Badge({ children }: { children: React.ReactNode }) {
-  return <span className="inline-flex items-center rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">{children}</span>
+function SlotRow({
+  meeting,
+  role,
+  slot,
+  data,
+  refresh,
+  goingIds,
+  iHaveRole,
+}: {
+  meeting: AppMeeting
+  role: RoleDef
+  slot: number
+  data: AppData
+  refresh: () => Promise<void>
+  goingIds: Set<string>
+  iHaveRole: boolean
+}) {
+  const { toast } = useToast()
+  const [busy, setBusy] = useState(false)
+  const me = data.user
+  const label = slotLabel(role.key, slot)
+  const assignment = meeting.roles.find((r) => r.role === role.key && r.slot === slot)
+  const holder = assignment ? data.users.find((u) => u.id === assignment.userId) : undefined
+  const isMine = assignment?.userId === me.id
+  const roleOf = (userId: string) => meeting.roles.find((r) => r.userId === userId)
+
+  async function run(fn: () => Promise<unknown>, success: string) {
+    if (busy) return
+    setBusy(true)
+    try {
+      await fn()
+      toast({ title: success })
+    } catch (e) {
+      toast({ title: "Could not update role", description: e instanceof Error ? e.message : undefined, variant: "destructive" })
+    } finally {
+      await refresh()
+      setBusy(false)
+    }
+  }
+
+  function adminPick(userId: string) {
+    const u = data.users.find((x) => x.id === userId)
+    if (!u) return
+    const other = roleOf(userId)
+    let force = false
+    if (other && other.id !== assignment?.id) {
+      if (!window.confirm(`${u.name} is already ${slotLabel(other.role, other.slot)}. Give them ${label} as well?`)) return
+      force = true
+    }
+    if (assignment) {
+      run(() => api("/api/roles", "PATCH", { id: assignment.id, userId, force }), `${label} reassigned to ${u.name}`)
+    } else {
+      run(() => api("/api/roles", "POST", { meetingId: meeting.id, role: role.key, slot, userId, force }), `${u.name} is now ${label}`)
+    }
+  }
+
+  const leastPlayed = !assignment
+    ? data.users
+        .filter((u) => u.active && goingIds.has(u.id) && !roleOf(u.id))
+        .sort((a, b) => (a.roleCounts[role.key] ?? 0) - (b.roleCounts[role.key] ?? 0) || a.name.localeCompare(b.name))
+        .slice(0, 2)
+    : []
+
+  return (
+    <div className={`flex flex-wrap items-center gap-3 px-4 py-3 sm:flex-nowrap ${isMine ? "bg-primary/5" : ""}`}>
+      <div className="w-28 shrink-0" title={role.description}>
+        <p className="text-sm font-semibold">
+          {role.emoji && <span className="mr-1">{role.emoji}</span>}
+          {label}
+        </p>
+      </div>
+      <div className="min-w-0 flex-1">
+        {holder ? (
+          <span className="flex items-center gap-2">
+            <UserAvatar user={holder} className="size-7" />
+            <span className="min-w-0">
+              <span className="block truncate text-sm font-medium">
+                {holder.name} {isMine && <span className="text-xs font-normal text-primary">(you)</span>}
+              </span>
+              <span className="block text-xs text-muted-foreground">
+                {(holder.roleCounts[role.key] ?? 0) === 0 ? "First time in this role" : `Played ${holder.roleCounts[role.key]}× before`}
+              </span>
+            </span>
+          </span>
+        ) : (
+          <span className="text-sm text-muted-foreground">
+            Open
+            {leastPlayed.length > 0 && (
+              <span className="block text-xs">
+                Least played by {leastPlayed.map((u) => `${u.name.split(" ")[0]} (${u.roleCounts[role.key] ?? 0}×)`).join(", ")}
+              </span>
+            )}
+          </span>
+        )}
+      </div>
+      <div className="flex items-center gap-1.5">
+        {busy && <Loader2 className="size-4 animate-spin text-muted-foreground" />}
+        {!assignment && !iHaveRole && !me.isAdmin && (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={busy}
+            onClick={() => run(() => api("/api/roles", "POST", { meetingId: meeting.id, role: role.key, slot }), `You're ${label}!`)}
+          >
+            Take
+          </Button>
+        )}
+        {me.isAdmin && (
+          <Select value="" onValueChange={(v) => v && adminPick(v)}>
+            <SelectTrigger size="sm" className="w-32" aria-label={`${assignment ? "Reassign" : "Assign"} ${label}`} disabled={busy}>
+              <SelectValue placeholder={assignment ? "Reassign" : "Assign"} />
+            </SelectTrigger>
+            <SelectContent>
+              {data.users
+                .filter((u) => u.active && u.id !== assignment?.userId)
+                .sort((a, b) => Number(goingIds.has(b.id)) - Number(goingIds.has(a.id)) || a.name.localeCompare(b.name))
+                .map((u) => {
+                  const other = roleOf(u.id)
+                  return (
+                    <SelectItem key={u.id} value={u.id}>
+                      {goingIds.has(u.id) ? "● " : "○ "}
+                      {u.name}
+                      {u.id === me.id ? " (me)" : ""}
+                      {other ? ` — ${slotLabel(other.role, other.slot)}` : ""}
+                    </SelectItem>
+                  )
+                })}
+            </SelectContent>
+          </Select>
+        )}
+        {assignment && (isMine || me.isAdmin) && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-8 text-muted-foreground hover:text-destructive"
+            disabled={busy}
+            onClick={() =>
+              run(() => api("/api/roles", "DELETE", { id: assignment.id }), isMine ? `You withdrew from ${label}` : `${label} is open again`)
+            }
+            aria-label={isMine ? `Withdraw from ${label}` : `Remove ${holder?.name} from ${label}`}
+          >
+            <X className="size-4" />
+          </Button>
+        )}
+      </div>
+    </div>
+  )
 }

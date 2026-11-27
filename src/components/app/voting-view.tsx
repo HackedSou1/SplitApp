@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 import { AnimatePresence, motion } from "framer-motion"
 import { BarChart3, Check, Loader2, RefreshCw, Trophy, Vote, Zap } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -31,20 +31,6 @@ export function VotingView({ data, refresh }: { data: AppData; refresh: () => Pr
   const isOpen = meeting?.status === "completed"
   const me = data.users.find((u) => u.id === data.user.id)!
 
-  // gentle live-refresh while voting is open
-  useEffect(() => {
-    if (!isOpen) return
-    const t = setInterval(async () => {
-      try {
-        setRefreshing(true)
-        await refresh()
-      } finally {
-        setRefreshing(false)
-      }
-    }, 15000)
-    return () => clearInterval(t)
-  }, [isOpen, refresh])
-
   const userById = useMemo(() => {
     const map = new Map<string, AppData["users"][number]>()
     for (const u of data.users) map.set(u.id, u)
@@ -58,8 +44,8 @@ export function VotingView({ data, refresh }: { data: AppData; refresh: () => Pr
     ])
     let ids: string[]
     const cat = VOTE_CATEGORIES.find((c) => c.key === category)
-    if (cat?.roleFilter) {
-      const roleHolders = m.roles.filter((r) => r.role === cat.roleFilter).map((r) => r.userId)
+    if (cat?.roles) {
+      const roleHolders = Array.from(new Set(m.roles.filter((r) => cat.roles!.includes(r.role)).map((r) => r.userId)))
       ids = roleHolders.length > 0 ? roleHolders : Array.from(attendeeIds)
     } else {
       ids = Array.from(attendeeIds)
@@ -120,7 +106,7 @@ export function VotingView({ data, refresh }: { data: AppData; refresh: () => Pr
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Meeting awards</h1>
           <p className="text-sm text-muted-foreground">
-            Vote for the best speakers and role players — like a Google Form, with instant results.
+            Vote for the best speaker, evaluator, table topics speaker and role player.
           </p>
         </div>
         <div className="w-full sm:w-72">
@@ -156,7 +142,7 @@ export function VotingView({ data, refresh }: { data: AppData; refresh: () => Pr
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-60" />
               <span className="relative inline-flex size-2 rounded-full bg-emerald-600" />
             </span>
-            Live results
+            Voting open
             <button
               onClick={async () => {
                 setRefreshing(true)
@@ -178,8 +164,8 @@ export function VotingView({ data, refresh }: { data: AppData; refresh: () => Pr
               <Vote className="size-4 text-primary" /> Your ballot
             </CardTitle>
             <CardDescription>
-              Tap a name to vote — you can change your mind until voting closes. You can&apos;t vote for yourself, and
-              votes are anonymous.
+              Tap a name to vote — you can change your mind until voting closes. You can&apos;t vote for yourself.
+              Ballots are secret and results are revealed when the admin closes voting.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -284,6 +270,21 @@ function ResultsCard({
 }) {
   void data
   const isOpen = meeting.status === "completed"
+  if (meeting.resultsHidden) {
+    return (
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Trophy className="size-4 text-amber-500" /> Results
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="text-sm text-muted-foreground">
+          Results stay hidden while voting is open, so nobody is influenced. They appear here as soon as the admin closes
+          voting.
+        </CardContent>
+      </Card>
+    )
+  }
   const categories = VOTE_CATEGORIES.filter((c) => Object.keys(meeting.voteCounts[c.key] ?? {}).length > 0)
 
   if (categories.length === 0) {
@@ -308,7 +309,7 @@ function ResultsCard({
           <Trophy className="size-4 text-amber-500" /> {isOpen ? "Live results" : "Final results"}
         </CardTitle>
         <CardDescription>
-          {isOpen ? "Leaders so far — results update as votes come in." : "The winners of this meeting's awards."}
+          {isOpen ? "Only admins can see this while voting is open." : "The winners of this meeting's awards."}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">

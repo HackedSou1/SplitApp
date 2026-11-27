@@ -14,7 +14,14 @@ export async function PATCH(request: Request, { params }: Params) {
     const user = await db.user.findUnique({ where: { id } })
     if (!user) throw new ApiError("User not found", 404)
 
-    const data: { name?: string; active?: boolean; isAdmin?: boolean; password?: string } = {}
+    const data: { name?: string; email?: string; active?: boolean; isAdmin?: boolean; password?: string } = {}
+    if (body?.email !== undefined) {
+      const email = String(body.email).trim().toLowerCase()
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new ApiError("A valid email is required")
+      const clash = await db.user.findUnique({ where: { email } })
+      if (clash && clash.id !== id) throw new ApiError("Another member already uses this email")
+      data.email = email
+    }
     if (body?.name !== undefined) {
       const name = String(body.name).trim()
       if (!name) throw new ApiError("Name cannot be empty")
@@ -27,6 +34,7 @@ export async function PATCH(request: Request, { params }: Params) {
       data.active = Boolean(body.active)
     }
     if (body?.isAdmin !== undefined) {
+      if (id === admin.id && body.isAdmin === false) throw new ApiError("You cannot remove your own admin rights")
       data.isAdmin = Boolean(body.isAdmin)
     }
     if (body?.password !== undefined) {

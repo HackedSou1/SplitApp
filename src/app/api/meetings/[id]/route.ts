@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { db } from "@/lib/db"
 import { requireAdmin, ApiError } from "@/lib/auth"
 import { MEETING_STATUSES } from "@/lib/constants"
+import { parseMeetingFields } from "@/lib/meeting-input"
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -15,19 +16,12 @@ export async function PATCH(request: Request, { params }: Params) {
     const meeting = await db.meeting.findUnique({ where: { id } })
     if (!meeting) throw new ApiError("Meeting not found", 404)
 
-    const data: { title?: string; theme?: string | null; date?: Date; status?: string } = {}
-    if (body?.title !== undefined) {
-      const title = String(body.title).trim()
-      if (!title) throw new ApiError("Title cannot be empty")
-      data.title = title
-    }
-    if (body?.theme !== undefined) {
-      data.theme = body.theme ? String(body.theme).trim() : null
-    }
-    if (body?.date !== undefined) {
-      const date = new Date(String(body.date))
-      if (isNaN(date.getTime())) throw new ApiError("Invalid date")
-      data.date = date
+    const data: ReturnType<typeof parseMeetingFields> & { status?: string } = parseMeetingFields(body ?? {})
+    if (data.speakerSlots !== undefined && data.speakerSlots < meeting.speakerSlots) {
+      const taken = await db.meetingRole.count({
+        where: { meetingId: id, role: { in: ["speaker", "evaluator"] }, slot: { gt: data.speakerSlots } },
+      })
+      if (taken > 0) throw new ApiError("Some of the speaker/evaluator slots you are removing are filled — free them first")
     }
     if (body?.status !== undefined) {
       const status = String(body.status)
