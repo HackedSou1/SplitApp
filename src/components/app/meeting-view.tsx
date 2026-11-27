@@ -262,18 +262,70 @@ function SlotRow({
     : []
 
   return (
-    <div className={`flex flex-wrap items-center gap-3 px-4 py-3 sm:flex-nowrap ${isMine ? "bg-primary/5" : ""}`}>
-      <div className="w-36 shrink-0" title={role.description}>
-        <p className="text-sm font-semibold">
-          {role.emoji && <span className="mr-1">{role.emoji}</span>}
-          {label}
-        </p>
+    <div className={`flex flex-col gap-2 px-4 py-3 ${isMine ? "bg-primary/5" : ""}`}>
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0" title={role.description}>
+          <p className="whitespace-nowrap text-sm font-semibold">
+            {role.emoji && <span className="mr-1">{role.emoji}</span>}
+            {label}
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-1.5">
+          {busy && <Loader2 className="size-4 animate-spin text-muted-foreground" />}
+          {!assignment && !iHaveRole && !me.isAdmin && (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={busy}
+              onClick={() => run(() => api("/api/roles", "POST", { meetingId: meeting.id, role: role.key, slot }), `You're ${label}!`)}
+            >
+              Take
+            </Button>
+          )}
+          {me.isAdmin && (
+            <Select value="" onValueChange={(v) => v && adminPick(v)}>
+              <SelectTrigger size="sm" className="w-28" aria-label={`${assignment ? "Reassign" : "Assign"} ${label}`} disabled={busy}>
+                <SelectValue placeholder={assignment ? "Reassign" : "Assign"} />
+              </SelectTrigger>
+              <SelectContent>
+                {data.users
+                  .filter((u) => u.active && u.id !== assignment?.userId)
+                  .sort((a, b) => Number(goingIds.has(b.id)) - Number(goingIds.has(a.id)) || a.name.localeCompare(b.name))
+                  .map((u) => {
+                    const other = roleOf(u.id)
+                    return (
+                      <SelectItem key={u.id} value={u.id}>
+                        {goingIds.has(u.id) ? "● " : "○ "}
+                        {u.name}
+                        {u.id === me.id ? " (me)" : ""}
+                        {other ? ` — ${slotLabel(other.role, other.slot)}` : ""}
+                      </SelectItem>
+                    )
+                  })}
+              </SelectContent>
+            </Select>
+          )}
+          {assignment && (isMine || me.isAdmin) && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-8 text-muted-foreground hover:text-destructive"
+              disabled={busy}
+              onClick={() =>
+                run(() => api("/api/roles", "DELETE", { id: assignment.id }), isMine ? `You withdrew from ${label}` : `${label} is open again`)
+              }
+              aria-label={isMine ? `Withdraw from ${label}` : `Remove ${holder?.name} from ${label}`}
+            >
+              <X className="size-4" />
+            </Button>
+          )}
+        </div>
       </div>
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0">
         {holder ? (
           <span className="flex items-center gap-2">
             <UserAvatar user={holder} className="size-7" />
-            <span className="min-w-0">
+            <span className="min-w-0 flex-1">
               <span className="block truncate text-sm font-medium">
                 {holder.name} {isMine && <span className="text-xs font-normal text-primary">(you)</span>}
               </span>
@@ -291,56 +343,6 @@ function SlotRow({
               </span>
             )}
           </span>
-        )}
-      </div>
-      <div className="flex items-center gap-1.5">
-        {busy && <Loader2 className="size-4 animate-spin text-muted-foreground" />}
-        {!assignment && !iHaveRole && !me.isAdmin && (
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={busy}
-            onClick={() => run(() => api("/api/roles", "POST", { meetingId: meeting.id, role: role.key, slot }), `You're ${label}!`)}
-          >
-            Take
-          </Button>
-        )}
-        {me.isAdmin && (
-          <Select value="" onValueChange={(v) => v && adminPick(v)}>
-            <SelectTrigger size="sm" className="w-32" aria-label={`${assignment ? "Reassign" : "Assign"} ${label}`} disabled={busy}>
-              <SelectValue placeholder={assignment ? "Reassign" : "Assign"} />
-            </SelectTrigger>
-            <SelectContent>
-              {data.users
-                .filter((u) => u.active && u.id !== assignment?.userId)
-                .sort((a, b) => Number(goingIds.has(b.id)) - Number(goingIds.has(a.id)) || a.name.localeCompare(b.name))
-                .map((u) => {
-                  const other = roleOf(u.id)
-                  return (
-                    <SelectItem key={u.id} value={u.id}>
-                      {goingIds.has(u.id) ? "● " : "○ "}
-                      {u.name}
-                      {u.id === me.id ? " (me)" : ""}
-                      {other ? ` — ${slotLabel(other.role, other.slot)}` : ""}
-                    </SelectItem>
-                  )
-                })}
-            </SelectContent>
-          </Select>
-        )}
-        {assignment && (isMine || me.isAdmin) && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-8 text-muted-foreground hover:text-destructive"
-            disabled={busy}
-            onClick={() =>
-              run(() => api("/api/roles", "DELETE", { id: assignment.id }), isMine ? `You withdrew from ${label}` : `${label} is open again`)
-            }
-            aria-label={isMine ? `Withdraw from ${label}` : `Remove ${holder?.name} from ${label}`}
-          >
-            <X className="size-4" />
-          </Button>
         )}
       </div>
     </div>
