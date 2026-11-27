@@ -61,40 +61,48 @@ export function HistoryView({ data }: { data: AppData }) {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="sticky left-0 z-10 bg-card">Member</TableHead>
-                {ROLES.map((r) => (
-                  <TableHead key={r.key} className="text-center">
-                    <span title={r.label}>{r.short}</span>
-                  </TableHead>
-                ))}
-                <TableHead className="text-center">Total</TableHead>
+                <TableHead className="sticky left-0 z-10 bg-card">Role</TableHead>
+                {activeUsers.map((u) => {
+                  const isMe = u.id === me.id
+                  return (
+                    <TableHead key={u.id} className={`text-center ${isMe ? "bg-primary/5" : ""}`}>
+                      <span className="flex flex-col items-center gap-1 whitespace-nowrap py-1" title={u.name}>
+                        <UserAvatar user={u} className="size-6" />
+                        <span>
+                          {u.name.split(" ")[0]}
+                          {isMe && <span className="text-xs text-primary"> (you)</span>}
+                        </span>
+                      </span>
+                    </TableHead>
+                  )
+                })}
               </TableRow>
             </TableHeader>
             <TableBody>
-              {activeUsers.map((u) => {
-                const isMe = u.id === me.id
-                return (
-                  <TableRow key={u.id} className={isMe ? "bg-primary/5" : undefined}>
-                    <TableCell className="sticky left-0 z-10 bg-card font-medium">
-                      <span className="flex items-center gap-2 whitespace-nowrap">
-                        <UserAvatar user={u} className="size-6" />
-                        {u.name}
-                        {isMe && <span className="text-xs text-primary">(you)</span>}
-                        {u.isAdmin && <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase">admin</span>}
-                      </span>
-                    </TableCell>
-                    {ROLES.map((r) => {
-                      const c = u.roleCounts[r.key] ?? 0
-                      return (
-                        <TableCell key={r.key} className={`text-center ${c === 0 ? "text-muted-foreground/40" : ""}`}>
-                          {c === 0 ? "–" : c}
-                        </TableCell>
-                      )
-                    })}
-                    <TableCell className="text-center font-semibold">{u.totalRoles}</TableCell>
-                  </TableRow>
-                )
-              })}
+              {ROLES.map((r) => (
+                <TableRow key={r.key}>
+                  <TableCell className="sticky left-0 z-10 bg-card font-medium whitespace-nowrap">{r.label}</TableCell>
+                  {activeUsers.map((u) => {
+                    const c = u.roleCounts[r.key] ?? 0
+                    return (
+                      <TableCell
+                        key={u.id}
+                        className={`text-center ${u.id === me.id ? "bg-primary/5" : ""} ${c === 0 ? "text-muted-foreground/40" : ""}`}
+                      >
+                        {c === 0 ? "–" : c}
+                      </TableCell>
+                    )
+                  })}
+                </TableRow>
+              ))}
+              <TableRow>
+                <TableCell className="sticky left-0 z-10 bg-card font-semibold">Total</TableCell>
+                {activeUsers.map((u) => (
+                  <TableCell key={u.id} className={`text-center font-semibold ${u.id === me.id ? "bg-primary/5" : ""}`}>
+                    {u.totalRoles}
+                  </TableCell>
+                ))}
+              </TableRow>
             </TableBody>
           </Table>
         </CardContent>
