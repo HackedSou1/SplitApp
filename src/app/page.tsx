@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from "framer-motion"
 import {
   CalendarClock,
   History,
+  KeyRound,
   Home,
   LogOut,
   Mic,
@@ -33,6 +34,7 @@ import { MeetingView } from "@/components/app/meeting-view"
 import { HistoryView } from "@/components/app/history-view"
 import { VotingView } from "@/components/app/voting-view"
 import { AdminView } from "@/components/app/admin-view"
+import { ChangePasswordDialog } from "@/components/app/change-password-dialog"
 
 const NAV: { key: View; label: string; icon: React.ReactNode; adminOnly?: boolean }[] = [
   { key: "home", label: "Home", icon: <Home className="size-4" /> },
@@ -58,6 +60,7 @@ async function loadAppData(): Promise<LoadState> {
 export default function Page() {
   const [state, setState] = useState<LoadState>({ status: "loading" })
   const [view, setView] = useState<View>("home")
+  const [pwOpen, setPwOpen] = useState(false)
 
   const refresh = useCallback(async () => {
     const result = await loadAppData()
@@ -175,6 +178,9 @@ export default function Page() {
                     <User className="size-4" /> Admin panel
                   </DropdownMenuItem>
                 )}
+                <DropdownMenuItem onClick={() => setPwOpen(true)}>
+                  <KeyRound className="size-4" /> Change password
+                </DropdownMenuItem>
                 <DropdownMenuItem onClick={logout} variant="destructive">
                   <LogOut className="size-4" /> Sign out
                 </DropdownMenuItem>
@@ -206,6 +212,8 @@ export default function Page() {
           ))}
         </nav>
       </header>
+
+      <ChangePasswordDialog open={pwOpen} onOpenChange={setPwOpen} />
 
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-28 pt-6 md:pb-10">
         <AnimatePresence mode="wait">
