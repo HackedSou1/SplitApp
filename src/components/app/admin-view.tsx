@@ -31,6 +31,7 @@ import { api, fmtShortDate, localInputValue } from "@/lib/client-utils"
 import { MAX_SLOTS } from "@/lib/constants"
 import type { AppData, AppUser } from "@/lib/client-types"
 import { MeetingStatusBadge, UserAvatar } from "@/components/app/bits"
+import { NominationsDialog } from "@/components/app/nominations-dialog"
 
 function genPassword(): string {
   return Array.from({ length: 4 }, () => Math.random().toString(36).slice(2, 6)).join("").slice(0, 10)
@@ -424,6 +425,8 @@ function MeetingsTab({ data, refresh }: { data: AppData; refresh: () => Promise<
   const { toast } = useToast()
   const [createOpen, setCreateOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<AppData["meetings"][number] | null>(null)
+  const [nomTarget, setNomTarget] = useState<{ meetingId: string; openVoting: boolean } | null>(null)
+  const nomMeeting = nomTarget ? data.meetings.find((m) => m.id === nomTarget.meetingId) : undefined
   const [busy, setBusy] = useState(false)
 
   const [hh, mm] = data.club.meetingTime.split(":").map(Number)
@@ -486,7 +489,7 @@ function MeetingsTab({ data, refresh }: { data: AppData; refresh: () => Promise<
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">
-          Mark a meeting <strong>completed</strong> after it happens — that opens voting. Close voting to lock in the
+          After a meeting, click <strong>Open voting</strong> and pick the nominees for each award. Close voting to lock in the
           winners.
         </p>
         <Button onClick={() => setCreateOpen(true)} size="sm" className="shrink-0">
@@ -518,8 +521,13 @@ function MeetingsTab({ data, refresh }: { data: AppData; refresh: () => Promise<
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 {m.status === "scheduled" && (
-                  <Button size="sm" variant="outline" onClick={() => setStatus(m.id, "completed", "Voting is now open for this meeting")}>
-                    <Check className="size-4" /> Mark completed
+                  <Button size="sm" variant="outline" onClick={() => setNomTarget({ meetingId: m.id, openVoting: true })}>
+                    <Check className="size-4" /> Open voting
+                  </Button>
+                )}
+                {m.status === "completed" && (
+                  <Button size="sm" variant="outline" onClick={() => setNomTarget({ meetingId: m.id, openVoting: false })}>
+                    Nominees
                   </Button>
                 )}
                 {m.status === "completed" && (
@@ -559,6 +567,16 @@ function MeetingsTab({ data, refresh }: { data: AppData; refresh: () => Promise<
           </Card>
         ))}
       </div>
+
+      {nomTarget && nomMeeting && (
+        <NominationsDialog
+          meeting={nomMeeting}
+          openVoting={nomTarget.openVoting}
+          data={data}
+          refresh={refresh}
+          onClose={() => setNomTarget(null)}
+        />
+      )}
 
       {/* Create meeting dialog */}
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>

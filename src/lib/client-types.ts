@@ -27,6 +27,7 @@ export type AppMeeting = {
   mapsUrl: string | null
   speakerSlots: number
   notes: string | null
+  nominations: Record<string, string[]> | null
   status: "scheduled" | "completed" | "closed"
   attendances: { userId: string; status: string }[]
   roles: { id: string; userId: string; role: string; slot: number }[]

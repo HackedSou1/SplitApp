@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast"
 import { api, fmtShortDate } from "@/lib/client-utils"
 import { VOTE_CATEGORIES } from "@/lib/constants"
+import { candidatesFor } from "@/lib/voting"
 import type { AppData, AppMeeting } from "@/lib/client-types"
 import { MeetingStatusBadge, RoleBadge, UserAvatar } from "@/components/app/bits"
 
@@ -36,32 +37,6 @@ export function VotingView({ data, refresh }: { data: AppData; refresh: () => Pr
     for (const u of data.users) map.set(u.id, u)
     return map
   }, [data.users])
-
-  function candidatesFor(m: AppMeeting, category: string): string[] {
-    const attendeeIds = new Set<string>([
-      ...m.attendances.filter((a) => a.status === "yes").map((a) => a.userId),
-      ...m.roles.map((r) => r.userId),
-    ])
-    let ids: string[]
-    const cat = VOTE_CATEGORIES.find((c) => c.key === category)
-    if (cat?.roles) {
-      const roleHolders = Array.from(new Set(m.roles.filter((r) => cat.roles!.includes(r.role)).map((r) => r.userId)))
-      ids = roleHolders.length > 0 ? roleHolders : Array.from(attendeeIds)
-    } else {
-      ids = Array.from(attendeeIds)
-    }
-    if (category === "best_table_topics") {
-      const ttm = m.roles.find((r) => r.role === "topicsmaster")?.userId
-      const withoutTtm = ids.filter((id) => id !== ttm)
-      if (withoutTtm.length > 0) ids = withoutTtm
-    }
-    return ids
-      .filter((id) => {
-        const u = userById.get(id)
-        return u && u.active
-      })
-      .sort((a, b) => (userById.get(a)!.name.localeCompare(userById.get(b)!.name)))
-  }
 
   async function castVote(category: string, candidateId: string | null) {
     if (!meeting || busyCategory) return
@@ -177,7 +152,7 @@ export function VotingView({ data, refresh }: { data: AppData; refresh: () => Pr
             </div>
             <div className="space-y-6">
               {VOTE_CATEGORIES.map((cat) => {
-                const candidates = candidatesFor(meeting, cat.key).filter((id) => id !== me.id)
+                const candidates = candidatesFor(meeting, cat.key, data.users).filter((id) => id !== me.id)
                 const myPick = myVotes[cat.key]
                 const busy = busyCategory === cat.key
                 return (

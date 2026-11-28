@@ -87,6 +87,7 @@ export async function GET() {
         mapsUrl: m.mapsUrl,
         speakerSlots: m.speakerSlots,
         notes: m.notes,
+        nominations: (m.nominations as Record<string, string[]> | null) ?? null,
         status: m.status,
         attendances: m.attendances.map((a) => ({ userId: a.userId, status: a.status })),
         roles: m.roles,

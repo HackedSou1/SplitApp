@@ -44,6 +44,8 @@ model Meeting {
   // how many speaker / evaluator slots this meeting has
   speakerSlots Int @default(3)
   notes     String?
+  // admin-picked nominees per award: { "best_table_topics": [userId, ...], ... }
+  nominations Json?
   // scheduled | completed (voting open) | closed (voting finished)
   status    String   @default("scheduled")
   createdAt DateTime @default(now())

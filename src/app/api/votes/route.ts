@@ -34,6 +34,10 @@ export async function POST(request: Request) {
     if (candidateId === user.id) {
       throw new ApiError("You cannot vote for yourself")
     }
+    const nominees = (meeting.nominations as Record<string, string[]> | null)?.[category]
+    if (nominees && nominees.length > 0 && !nominees.includes(candidateId)) {
+      throw new ApiError("This member is not nominated for this award")
+    }
     const candidate = await db.user.findUnique({ where: { id: candidateId } })
     if (!candidate || !candidate.active) throw new ApiError("Candidate not found or inactive", 404)
 
