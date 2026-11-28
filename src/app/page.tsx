@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState, useSyncExternalStore } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { AnimatePresence, motion } from "framer-motion"
 import {
   CalendarClock,
@@ -9,15 +9,11 @@ import {
   Home,
   LogOut,
   Mic,
-  Moon,
-  Sun,
   Trophy,
   User,
   Vote,
 } from "lucide-react"
-import { useTheme } from "next-themes"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -150,7 +146,6 @@ export default function Page() {
             </div>
           </div>
           <div className="flex items-center gap-1.5">
-            <ThemeToggle />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
@@ -273,21 +268,3 @@ export default function Page() {
     </div>
   )
 }
-
-function ThemeToggle() {
-  const { resolvedTheme, setTheme } = useTheme()
-  const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false)
-  return (
-    <Button
-      variant="ghost"
-      size="icon"
-      className="size-9"
-      onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
-      aria-label="Toggle dark mode"
-    >
-      {mounted && resolvedTheme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
-    </Button>
-  )
-}
-
-const emptySubscribe = () => () => {}
